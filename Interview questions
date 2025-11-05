@@ -165,3 +165,38 @@ constraint data{N inside{[0:M-1]};
 p = c; //legal, upcasting
 
 $cast(c, p); // downcasting
+Q)Here’s a tight UVM sequence that writes err_reg=1 and checks that irq_intf.IRQ asserts within 100 clk cycles. If not, it errors.
+class inq_err_check_seq extends uvm_sequence#(uvm_sequence_item);
+  `uvm_object_utils(inq_err_check_seq)
+
+  virtual intr_interface irq_intf;  // has .clk and .IRQ
+  err_reg_block rm;                 // your RAL block (has err_reg)
+
+  function new(string n="inq_err_check_seq"); super.new(n); endfunction
+
+  // (optional) grab handles via config_db in pre_body if you prefer
+  // function void pre_body(); ... endfunction
+
+  task body();
+    uvm_status_e st;
+
+    // 1) trigger the error condition
+    rm.err_reg.write(.status(st), .value(1), .parent(this));
+
+    // 2) wait up to 100 cycles for IRQ to assert
+    bit seen = 0;
+    repeat (100) begin
+      @(posedge irq_intf.clk);
+      if (irq_intf.IRQ) begin
+        seen = 1;
+        break;
+      end
+    end
+
+    if (!seen)
+      `uvm_error("IRQ_TIMEOUT", "IRQ did not assert within 100 cycles after err_reg write")
+    else
+      `uvm_info("IRQ_OK", "IRQ asserted within 100 cycles", UVM_MEDIUM)
+  endtask
+endclass
+
