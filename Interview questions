@@ -1,0 +1,167 @@
+Q) Here’s a SystemVerilog constraint-based solution to generate 4 non-overlapping memory partitions in a 2 KB memory (0–2047), each of minimum 64 B and not necessarily equal size 👇
+2)👉 Once VALID goes high, the corresponding READY must assert within 3–10 clock cycles (to maintain handshake timing).
+property ready_within_3_to_10;
+  @(posedge clk)
+  disable iff (!reset_n)
+  valid |-> ##[3:10] ready;
+endproperty
+a_ready_delay: assert property (ready_within_3_to_10)
+  else $error("READY not asserted within 3–10 cycles of VALID");
+3)write an assertion
+If a signal_a asserts followed by 3 consecutive cycles of signal_b asserting then in each of those 3 cycles, the data_out bus should be equal to data_in bus.
+
+
+@(posedgde clk)
+
+a ##1 b[*3] |-> $past((data_out ==data_in),2) && $past((data_out ==data_in),1) && $past((data_out ==data_in),0); 
+1-> a -> b->b ->b 
+    
+
+4)randomize an array such that each element of an array has unique value. any two locations must have same value.
+5)calculate the sum of 100 numbers, starting at 0.
+
+rand int a[100];
+
+constraint data {}
+constraint data {a.sum with(int'(item))== ;}
+
+0+1+2+3+.... 99
+module tb;
+
+function automatic int sum_number(int n);
+  if(n< =0)
+return 0;
+else 
+return n+sum_number(n-1);
+endfunction
+
+
+initial begin 
+ int x  =sum_number(99);
+end
+
+bit manipulation
+
+endmodule
+6)Traveling circus, it goes town to town. In circus it have animals, falcons and tigers.
+Dont have a train to move. will tell all animals to move. Falcons fly, tigers run. 
+
+circus, animals
+
+virtual class animals;
+   pure virtual function move();
+   pure virtual function print();
+   
+endcalss  
+
+class falcon extends animals;
+string name;
+   function new(string name);
+     this.name = name;
+    endfucntion 
+
+    virtual function string move();
+       return "fly"
+    endfunction 
+  
+
+   virtual function print(string name; string move);
+     $display("name", move);
+   endfucntion  
+
+endclass
+
+
+class tiger extends animals;
+    string name = "tiger";
+    string move = move();
+    virtual function string move();
+       return "run";
+    endfunction 
+  
+
+   virtual function print(string name; string move);
+     $display("name", move);
+   endfucntion  
+
+endclass
+
+
+class circus;
+    animals ani[$];
+    function void add(animal a);
+	ani.push_back(a);
+    endfunction 
+   
+   function move_ani();
+     foreach(ani[i])
+         ani.move();
+  endfunction
+   
+endclass 
+
+module tb;
+   circus c= new();
+    initial begin 
+        c.add(new falcon("Falcon A"));
+        c.add(new falcon("Falcon B"));
+	c.add(new falcon("tiger A"))
+        c.move_ani();
+	end
+endmodule
+
+phone_book and it has name and phone_number. Print my phone_book with sorted by phone_number.
+
+000000000  "xyz";
+
+phone_book= {
+ "00000_00000": "Srija Manda"
+ "Sri "00000_00010",
+ "David rose": "00000_00001",
+ "Thomas key": 00000_00002,
+ "Shane Mahon": 00000_00003,
+}
+
+def xyz(num:str) -> int:
+  return int()
+
+entries =[name,num) for name,nums in phone_book.items() for num in nums]
+for name,num in sorted(entries, key = lamda kv:normalize(kv[1])):
+    printf(f"{num:>12} {name}")
+
+7)integer q1[$]; // Original queue
+integer q2[$]; // Queue to hold reversed element
+
+
+for(int i =0; i<q1.size(); i++ ) begin
+  int x =q1.pop_front();
+  q2.push_front(x);
+end
+
+
+
+int temp[];
+n = q1.size();
+for(int i =0; i<n;i++) begin
+ temp[n-1-i] = q[i];
+end
+
+q2= temp;
+
+
+8)Write the SV Constraints to set the 'N' bits in a given packed array of size M
+
+bit [M-1:0] array;
+Set N bits in the above array randomly given N < M.
+
+rand bit  [M-1:0] array;
+rant bit [M-1:0] N;
+
+constraint data{N inside{[0:M-1]};
+            $countones(array)== N;
+                   
+                     }
+
+p = c; //legal, upcasting
+
+$cast(c, p); // downcasting
