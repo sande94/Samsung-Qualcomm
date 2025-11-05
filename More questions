@@ -1,0 +1,194 @@
+1)Give fastly, let's say I have traveling circus, goes town to town, I have animals in my circus, I have falcons and tigers. So, I don't have a train yet,
+what i do is tell my animals to move and they move very well trained, 
+the falcons will fly when to move, the tigers run, I want to model this in OOPs in System verilog
+2)A phone book, in the phone book it has name and phone number, print my phone book with sorted by phone number, use python script
+3)class card;
+  rand enum {HEART=0, SPADE, CLUB, DIAMOND} suit;
+  rand bit [3:0] rank;                 // 1..13
+  rand enum {RED=0, BLACK} color;
+
+  // per-card constraints
+  constraint c_rank    { rank inside {[1:13]}; }
+  constraint c_color   {
+    (suit inside {HEART,DIAMOND}) -> (color == RED);
+    (suit inside {SPADE,CLUB})    -> (color == BLACK);
+  }
+endclass
+
+
+class deck;
+  rand card cards[52];
+
+  function new();
+    foreach (cards[i]) cards[i] = new();   // instantiate elements
+  endfunction
+
+  // ensure every (suit,rank) appears at most once
+  constraint c_unique_pairs {
+    foreach (cards[i]) foreach (cards[j])
+      if (i < j)
+        !((cards[i].suit == cards[j].suit) &&
+          (cards[i].rank == cards[j].rank));
+  }
+endclass
+
+
+module test;
+  initial begin
+    deck d = new();
+    assert(d.randomize());
+    $display("Deck randomized OK");
+  end
+endmodule
+4)Consider there is interface to RTL, it has data 32 bit, one more signal is command which is 8 bit comes with data, next is req and ack, single bit, 
+I want to capture values from 0 to 10 for data(everything) all values from 30-40, for command everything to hit, (0-256), so provide cover group, I want cross coverage of data and command also
+
+interface my_if(input logic clk);
+  logic        req, ack;
+  logic [31:0] data;
+  logic [7:0]  command;
+endinterface
+
+class bus_cov;
+  virtual my_if vif;
+
+  function new(virtual my_if vif); this.vif = vif; endfunction
+
+  covergroup cg @(posedge vif.clk iff (vif.req && vif.ack));
+    // DATA: individual bins for 0..10 and 30..40, plus "others"
+    data_cp : coverpoint vif.data {
+      bins d0_10[]  = { [0:10]   };     // 11 singleton bins
+      bins d30_40[] = { [30:40]  };     // 11 singleton bins
+      bins others   = default;          // all remaining values
+    }
+
+    // COMMAND: all 0..255 (8-bit)
+    cmd_cp  : coverpoint vif.command {
+      bins cmd_all[] = { [0:255] };     // 256 bins
+    }
+
+    // CROSS: only cross the targeted data bins with all command values
+    data_cmd_x : cross data_cp, cmd_cp {
+      ignore_bins cross_others = binsof(data_cp.others);
+    }
+  endgroup
+
+  function void build(); cg = new(); endfunction
+endclass
+5)“every ack must have a req in the last 3–5 cycles.”
+6)If start is asserted two clock ticks before send, then ack should assert exactly 3 clock ticks after send.
+7)module top;
+  initial begin
+    fork
+      fork
+        mydisplay(20,"thread2");
+        mydisplay(30,"thread3");
+        fork
+          mydisplay(40,"thread4");
+        join
+      join_none
+
+      wait fork;
+
+      mydisplay(10,"thread1");
+
+      join_any
+      wait fork;
+    end
+  end
+
+  task mydisplay(int a, string name);
+    #a;
+    $display("%0t: %0d %s", $time, a, name);
+  endtask
+endmodule
+8)class driver extends uvm_driver#(my_item);
+  `uvm_component_utils(driver)
+
+  virtual my_intf vif;         // has clk, req, data, done, etc.
+  reg_model_t     reg_model;   // has field: reg_model.reg.value
+
+  function new(string n, uvm_component p); super.new(n,p); endfunction
+
+  function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    if (!uvm_config_db#(virtual my_intf)::get(this,"","vif",vif))
+      `uvm_fatal("NOVIF","driver: vif not set");
+    if (!uvm_config_db#(reg_model_t)::get(this,"","reg_model",reg_model))
+      `uvm_fatal("NORM","driver: reg_model not set");
+  endfunction
+
+  task run_phase(uvm_phase phase);
+    my_item req, rsp;
+    forever begin
+      seq_item_port.get_next_item(req);
+
+      // mark "in progress" so sequence will wait
+      reg_model.reg.value = 0;
+
+      // drive one transaction
+      drive_one(req);
+
+      // wait for DUT to assert completion
+      @(posedge vif.clk);
+      wait (vif.done == 1'b1);
+
+      // send response back to the waiting sequence
+      rsp = my_item::type_id::create("rsp");
+      rsp.set_id_info(req);
+      // fill any response fields from interface as needed
+      // rsp.status = vif.status; etc.
+      seq_item_port.put_response(rsp);
+
+      // mark "done" so sequence's wait() releases
+      reg_model.reg.value = 1;
+
+      seq_item_port.item_done();
+    end
+  endtask
+
+  // Example drive—adapt to your signals
+  task drive_one(my_item t);
+    @(posedge vif.clk);
+    vif.req   <= 1'b1;
+    vif.data  <= t.data;
+    // ... any other fields ...
+    @(posedge vif.clk);
+    vif.req   <= 1'b0;
+  endtask
+endclass
+9)Let's say dut have 4 requesters, each of these requesters has two channels(threads), our stimulus should be generated,
+which has address generation handle, requester id and thread id, you are the owner for addr_gen, now not only you give address, in the class you have addr_gen,
+use any data structure, address inside, create random address, you have thread id and requestor id,
+how will you make sure you pick random address, when the test writer ask, create the address
+
+localparam int NUM_REQ = 4;     // CPU=0,GPU=1,NPU=2,IO=3
+localparam int NUM_THR = 2;     // 0/1
+
+bit [35:0] addr [NUM_REQ][NUM_THR][$];
+
+// make one: [35:34]=req, [33]=thr, [31:0]=aligned offset
+function bit [35:0] gen_one(int r, int th);
+  bit [31:0] off;
+  void'(std::randomize(off) with {
+    off inside {[32'h0000_1000:32'h000F_F000]};
+    off[3:0]==0;                     // 16B aligned
+  });
+  return {bit'(r[1:0]), bit'(th[0]), off};
+endfunction
+
+// populate: num_addr_size per requester per thread
+function void create_addresses(int num_addr_size);
+  foreach (addr[r,t]) begin
+    addr[r][t].delete();
+    repeat (num_addr_size)
+      addr[r][t].push_back(gen_one(r,t));
+  end
+endfunction
+
+// get one for given requester/thread
+function bit [35:0] get_addr(int req_id, int th_id);
+  if (addr[req_id][th_id].size()==0)
+    addr[req_id][th_id].push_back(gen_one(req_id, th_id));
+  return addr[req_id][th_id].pop_front();
+endfunction
